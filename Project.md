@@ -2,6 +2,10 @@
 
 ## Introduction
 
+
+![image](https://github.com/user-attachments/assets/9b8a25f3-cec8-4194-ae7e-73462543cd7e)
+
+
 This project implements a DevOps solution comprising the following components:
 
 - **Infrastructure:** AWS
