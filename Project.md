@@ -198,3 +198,91 @@ rpcinfo -p | grep nfs
 
 ![WhatsApp Image 2024-10-11 at 19 14 59_b92e9999](https://github.com/user-attachments/assets/52c416fa-29cf-41bd-8bae-3d43eb791afa)
 
+## Step 2 - Configure the Database Server
+
+### 1. Launch an Ubuntu EC2 Instance for the Database Server
+
+![WhatsApp Image 2024-10-16 at 10 32 16_5c34f44b](https://github.com/user-attachments/assets/b5ed71e6-8389-4421-ad06-143f40158132)
+
+
+### 2. Access the Instance and Begin Configuration
+
+```bash
+ssh -i "henrylearn.pem" ubuntu@ec2-13-51-160-74.eu-north-1.compute.amazonaws.com
+```
+![WhatsApp Image 2024-10-16 at 07 31 01_69b61404](https://github.com/user-attachments/assets/fe7fc434-766e-4a5b-8dd0-917516aa6521)
+
+
+### 3. Update and Upgrade the System
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+![image](https://github.com/user-attachments/assets/e2b60f44-2fa4-4701-8244-ec91a4aba2cf)
+
+### 4. Install MySQL Server
+
+#### Install MySQL
+
+```bash
+sudo apt install mysql-server
+```
+![WhatsApp Image 2024-10-16 at 07 32 26_350c9e01](https://github.com/user-attachments/assets/b8f1ff31-1e20-4d1c-809b-bfaf9d99daf0)
+
+#### Run MySQL Secure Installation Script
+
+```bash
+sudo mysql_secure_installation
+```
+![image](https://github.com/user-attachments/assets/55868a7d-3715-426e-a350-b95beb07a09a)
+
+### 5. Configure the MySQL Database
+
+#### Create the `tooling` Database
+
+#### Create a User for Database Access
+
+- **User Name:** `webaccess`
+  
+#### Grant Permissions to `webaccess` User on `tooling` Database from the Web Server Subnet
+
+```sql
+sudo mysql
+
+CREATE DATABASE tooling;
+CREATE USER 'webaccess'@'172.31.32.0/20' IDENTIFIED WITH mysql_native_password BY 'P@ssw0rd1';
+GRANT ALL PRIVILEGES ON tooling.* TO 'webaccess'@'172.31.32.0/20' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+
+show databases;
+use tooling;
+select host, user from mysql.user;
+exit
+```
+
+![image](https://github.com/user-attachments/assets/3da7f201-ce7e-44f3-8b2e-8860e956c982)
+
+![image](https://github.com/user-attachments/assets/eac2ff47-245e-4547-8e4e-a61fc670c06f)
+
+![WhatsApp Image 2024-10-16 at 10 42 32_1c1a3301](https://github.com/user-attachments/assets/401968a8-1160-4f9b-be10-396a2896ccf8)
+
+### 6. Set Bind Address and Restart MySQL Service
+
+Update the MySQL configuration file to allow connections from the appropriate subnet and then restart the service.
+
+```bash
+sudo vi /etc/mysql/mysql.conf.d/mysqld.cnf
+```
+
+```bash
+sudo systemctl restart mysql
+```
+
+```bash
+sudo systemctl status mysql
+```
+
+
+
+
