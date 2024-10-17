@@ -283,6 +283,320 @@ sudo systemctl restart mysql
 sudo systemctl status mysql
 ```
 
+## Configuring Web Servers
+We will be configuring the three web servers for nfs server connection and installing both apache and php on them.
+
+### Installing NFS Client
+
+1. Install the nfs-client and apache on all the three webservers:
+
+```bash
+sudo dnf install nfs-utils nfs4-acl-tools -y
+```
+
+2. Install Apache (httpd) and git:
+
+Our applicaiton requires a web server to handle HTTP requests, and **Apache** is the most commonly used web server for WordPress installations. 
+
+1. Install **Apache** using the `dnf` package manager:
+   ```bash
+   sudo dnf install httpd git
+   ```
+
+2. Start and enable Apache to ensure it runs on boot:
+   ```bash
+   sudo systemctl start httpd
+   sudo systemctl enable httpd
+   ```
+
+3. Check that Apache is running:
+   ```bash
+   sudo systemctl status httpd
+   ```
+
+   ![image](https://github.com/user-attachments/assets/d0621200-5eff-414d-bcb9-78663ae93ace)
+
+
+3. Access the web browser:
+   `http://your-server-ip`
+
+   If everything is configured correctly, you should see the default redhat page.
+
+![image](https://github.com/user-attachments/assets/38fb6b59-5cb1-41e4-b950-ba60cf92e96d)
+
+### Mounting NFS Shares
+
+1. Mount **/var/www/** and target the NFS server:
+
+```bash
+sudo mount -t nfs -o rw,nosuid 172.31.1.101:/mnt/apps /var/www
+```
+
+> The command **sudo mount -t nfs -o rw,nosuid 172.31.1.101:/mnt/apps /var/www** is used to mount a remote NFS (Network File System) directory on your local system. Let's break it down:
+> - **mount:** The command to mount a file system.
+>- **t nfs:** Specifies the type of file system to mount, which in this case is NFS.
+>- **o rw,nosuid:** These are options passed to the mount command:
+>     - **rw:** Mounts the file system with read-write access.
+>     - **nosuid:** Prevents the execution of "set-user-identifier" or "set-group-identifier" (suid/sgid) programs from the mounted file system. This increases security by preventing potential privilege escalation from the remote system.
+>- **172.31.1.101:/mnt/apps**: The NFS server and exported directory.
+>     - **72.31.1.101**: is the IP address of the NFS server.
+>     - **/mnt/apps**: is the directory being shared by the NFS server that you're mounting.
+>     - **/var/www**: The local directory where the NFS share will be mounted. After the command is run, the contents of the remote /mnt/apps directory will be accessible locally under /var/www.
+
+
+2. Verify the NFS is mount successfully with the command below:
+```bash
+df -h
+```
+
+3. Persistent Mounts: To ensure the volumes are automatically mounted at boot, updated /etc/fstab:
+
+```bash
+sudo nano /etc/fstab
+```
+Paste the code below:
+
+```yml
+# nfs mount location 
+172.31.1.101:/mnt/apps /var/www nfs defaults 0 0
+```
+
+```bash
+sudo systemctl daemon-reload
+
+sudo mount -a
+```
+### Installing PHP and extensions
+
+1. Verify RHEL Version
+
+Before starting, ensure you are running **RHEL 9.4**. This can be done with the following command:
+
+```bash
+cat /etc/redhat-release
+```
+
+Expected output:
+```
+Red Hat Enterprise Linux release 9.4 (Plow)
+```
+
+
+
+Enable Necessary Repositories
+
+To install the latest PHP version, we need to enable additional repositories, which are not enabled by default on **RHEL 9**.
+
+> you can see detailed decommentation from [Remi's site](https://rpms.remirepo.net/wizard/)
+
+![Remi webiste](images/remi-repo-wizard.png)
+
+#### Install the EPEL Repository
+
+**EPEL (Extra Packages for Enterprise Linux)** is a repository that contains additional software packages that are not provided in the default RHEL repository but are often needed for full functionality.
+
+```bash
+sudo dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+```
+
+![WhatsApp Image 2024-10-17 at 11 05 51_8b1e5fad](https://github.com/user-attachments/assets/c9b9af1c-770a-4792-a04e-17c7a7fd20f9)
+
+
+#### Install the Remi Repository
+
+**Remi’s repository** is required to install **PHP 8.3**, as RHEL’s default repositories only provide PHP versions up to 8.2.
+
+```bash
+sudo dnf install https://rpms.remirepo.net/enterprise/remi-release-9.rpm
+```
+
+### Step 4: Install PHP 8.3 and Extensions
+
+1. enable the module stream for **PHP 8.3**:
+   ```bash
+   sudo dnf module switch-to php:remi-8.3
+   ```
+2. install the module stream for **PHP 8.3** with default extension:
+   ```bash
+   sudo dnf module install php:remi-8.3
+   ```
+
+3. Install **PHP 8.3** and the necessary extensions for php-based application:
+   ```bash
+   sudo dnf install php php-opcache php-gd php-curl php-mysqlnd php-xml php-json php-mbstring php-intl php-soap php-zip
+   ```
+
+#### Explanation of Key PHP Extensions:
+
+- **php-apcache**: Enhances speed by caching precompiled PHP scripts in memory.
+- **php-gd**: Enables image processing, essential for uploading and editing images in WordPress.
+- **php-curl**: Facilitates external HTTP requests, allowing WordPress to interact with APIs and other websites.
+- **php-mysqlnd**: Native MySQL driver to link WordPress with databases.
+- **php-xml**: Supports parsing and writing of XML data.
+- **php-json**: Allows WordPress to process JSON, crucial for REST API functionality.
+- **php-mbstring**: Manages multi-byte string operations, ensuring language support.
+- **php-intl**: Provides internationalization features.
+- **php-soap**: Enables SOAP protocol integration.
+- **php-zip**: Handles ZIP file management, vital for plugin and theme uploads and updates.
+
+4. Start and enable **PHP-FPM**:
+   ```bash
+   sudo systemctl start php-fpm
+   sudo systemctl enable php-fpm
+   ```
+
+6.  Configure SELinux (Security-Enhanced Linux)
+
+> **SELinux** is a security module that enforces strict access control policies on your system, especially important for enterprise environments like Red Hat. It helps limit the damage that could be caused by compromised services, including the web server and PHP. By default, **SELinux** is set to **enforcing** mode on **RHEL**. This mode restricts many actions that Apache and PHP-FPM might need to function correctly.
+
+- Check SELinux Status
+
+Verify that SELinux is enabled and in **enforcing** mode:
+```bash
+sestatus
+```
+
+- Configure SELinux for PHP and Apache
+
+To allow **Apache** and **PHP-FPM** to run without issues, you need to allow specific actions that would otherwise be restricted by SELinux.
+
+1. Allow **Apache** to execute memory operations (needed by PHP’s OpCache):
+   ```bash
+   sudo setsebool -P httpd_execmem 1
+   ```
+
+2. Allow **Apache** to make network connections (required for external HTTP requests, for example, for connecting to APIs or downloading plugins/themes):
+   ```bash
+   sudo setsebool -P httpd_can_network_connect 1
+   ```
+
+3. Allow **Apache** to connect via a NFS server:
+
+```bash
+sudo setsebool -P httpd_use_nfs on
+```
+
+
+4. Verify the Change: After enabling the boolean, you can verify that it is set correctly:
+
+```bash
+getsebool httpd_use_nfs
+getsebool httpd_execmem
+getsebool httpd_can_network_connect
+```
+
+> You should see: **httpd_use_nfs --> on**, **httpd_execmem --> on** and **httpd_can_network_connect --> on**
+
+7. Verify PHP Installation
+
+After installation, check that PHP 8.3 is correctly installed and running.
+
+- Check the **PHP version**:
+
+   ```bash
+   php --version
+   ```
+
+   You should see output similar to:
+   ```
+   PHP 8.3.12 (cli) (built: Sep 26 2024 02:19:56) ( NTS )
+   ```
+
+- List the installed **PHP modules**:
+   ```bash
+   php -m
+   ```
+
+8. Test PHP Functionality
+
+Create a **PHP info page** to verify that PHP is correctly served through Apache:
+
+- Create a test PHP file:
+   ```bash
+   sudo mkdir /var/www/html
+   sudo nano /var/www/html/info.php
+   ```
+
+- Add the following code:
+   ```php
+   <?php
+   phpinfo();
+   ?>
+   ```
+- Restart Apache to apply the changes:
+   ```bash
+   sudo systemctl restart httpd
+   ```
+
+- Access this file via your web browser:
+   `http://your-server-ip/info.php`
+
+   If everything is configured correctly, a page displaying detailed PHP information should appear. kindly delete the info.php once testing is done.
+
+
+
+## Deploying Tooling Website
+
+- clone the PHP-based application from github
+
+```bash
+https://github.com/fortis-07/project-tooling.git
+```
+
+![image](https://github.com/user-attachments/assets/dfde5f73-be33-4a40-9065-edab381069ce)
+
+
+
+- import database:
+
+```bash
+cd tooling
+sudo mysql -h 172.31.3.89 -u webaccess -p tooling < tooling-db.sql 
+```
+
+- Add a new admin user called myuser into the tooling database:
+
+```bash
+sudo mysql -h 172.31.92.131 -u webaccess -p tooling
+```
+
+```sql
+INSERT INTO `users` (`username`, `password`, `email`, `user_type`, `status`)
+VALUES ('myuser', MD5('password'), 'user@mail.com', 'admin', '1');
+```
+
+>NB: we use the **MD5** hashing method based what was used in the tooling code
+
+> With this, you can login into the application as an admin user using:
+> 
+> **username:** myuser
+> **password:** password
+
+- update the database connection info in the function.php file
+
+```bash
+sudo nano /var/www/html/function.php
+```
+
+```php
+$db = mysqli_connect('172.31.92.131', 'webaccess', 'Password.1', 'tooling');
+```
+
+
+- Restart Apache: Once you’ve made the change, restart the Apache service to apply the new settings:
+
+```bash
+sudo systemctl restart httpd
+```
+
+- Visit the browser to view the application:
+```
+http://<public ip of any of the web servers>/index.php
+```
+> login using username: **myuser** and password: **password**
+> 
+
+![WhatsApp Image 2024-10-17 at 13 13 10_cb598147](https://github.com/user-attachments/assets/4cfb7aa0-98ec-4d4b-80d5-69ce08e36192)
 
 
 
